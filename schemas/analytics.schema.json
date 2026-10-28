@@ -1,0 +1,317 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.revenexx.com/analytics.schema.json",
+  "title": "revenexx analytics.json (v2)",
+  "description": "Declarative analytics contract for a revenexx app. One app ships one analytics.json. The platform turns each view into a flat, denormalised SQL view over the app's complex source entities — collapsing scoped JSONB attribute_values, relations and references into analysable columns. Reporting and BI tools read these flat views as datasets. Tenant isolation is NOT the app's concern and cannot be opted out of: the platform always creates every view WITH (security_invoker = true) so the base tables' Row-Level Security is enforced as the querying role (analytics_reader). Storage strategy (plain vs. materialized) is likewise a platform/ops decision, not an app one. The app developer only declares WHAT is analysable and WHERE each column comes from via `from` locators (the same vocabulary as search.json) — never SQL, never security or storage knobs. The sibling of search.json: search projects for full-text, analytics projects for reporting. Version 2 adds three things on top: columns flagged as personal data (`pii`), declared joins to another app's views (`relations`), and `datasets` — data that does not come from the app's own entities, such as a Cube's shipped file, a Cube's sync function or a tenant's own connection to an external system. Still no SQL: a dataset declares where its rows come from and what its columns are, and the platform loads, scopes and secures it.",
+  "type": "object",
+  "required": ["version"],
+  "anyOf": [{ "required": ["views"] }, { "required": ["datasets"] }],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": { "type": "string" },
+    "version": {
+      "description": "Contract major version. \"1\" is the original flat-view contract. \"2\" adds `pii` on a column, `relations` on a view and top-level `datasets`; every v1 file is a valid v2 file with the version changed, so moving up is a one-character edit. A file must declare `views`, `datasets` or both.",
+      "type": "string",
+      "enum": ["1", "2"]
+    },
+    "views": {
+      "description": "The flat views the platform builds over this app's own entities. Optional when the file only declares datasets, as a Cube's analytics.json usually does.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/view" }
+    },
+    "datasets": {
+      "description": "Data that does not come from this app's entities: a file a Cube ships, rows a Cube's function fetches, or a table, query or endpoint behind a tenant's own connection. Each dataset becomes a table (or, in live mode, a pass-through) that metrics.json can aggregate exactly like a view. The platform owns loading, refresh, tenant scoping and Row-Level Security; the file only says where the rows come from and what their columns are.",
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/dataset" }
+    }
+  },
+  "$defs": {
+    "view": {
+      "type": "object",
+      "required": ["name", "source", "columns"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Logical view name. The platform emits analytics.{vendor}__{app}__{name} in the apps database.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "source": {
+          "description": "The platform-managed entity this view is built from (the entity name from schema.json, e.g. \"products\").",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "key": {
+          "description": "Primary key column on the source entity.",
+          "type": "string",
+          "default": "id",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "default_locale": {
+          "description": "Locale used to resolve attribute:locale.<key> columns into a single scalar (analytics is one row per key, not per locale). Per-locale breakouts can be added as explicit columns.",
+          "type": "string",
+          "default": "en",
+          "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+        },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/column" }
+        },
+        "depends_on": {
+          "description": "Other source entities this view reads from (joins/relations). Documents the data dependencies; reserved for the platform to drive caching/refresh if it later chooses to materialise a view.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$" },
+          "default": []
+        },
+        "title": {
+          "description": "Human title for the view in analytics UIs (Reports catalog). Defaults to a humanised name.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Short description shown for the view in the analytics Reports catalog.",
+          "type": "string"
+        },
+        "roles": { "$ref": "#/$defs/roles" },
+        "relations": {
+          "description": "Declared joins to another app's view, used by the semantic compiler when a metric or report combines data across apps (revenue by product category, orders by campaign). Each entry says which column of this view holds the key of a row in the other view. Nothing is joined unless it is declared here, and a join only resolves when the other app is installed and ships that view.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/relation" }
+        }
+      }
+    },
+    "column": {
+      "type": "object",
+      "required": ["name", "from"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Column name in the flat view.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "from": {
+          "description": "Declarative source locator (same vocabulary as search.json, with scalar relations added for joins). Verbs the platform understands:\n  column:<col>                          a scalar column on the source entity\n  attribute:common.<key>                a key under attribute_values.common\n  attribute:common.*                    all common keys as a jsonb bucket\n  attribute:locale.<key>                a key under attribute_values.locale_specific.<default_locale>\n  relation:<fk>→<entity>.<col>           scalar: follow an FK column to one row\n  relation:<join>→<entity>.<col>[]       array: aggregate a column over a join table\n  relation:<join>→<entity>.<col>.<lk>[]  array of a localised label (jsonb → <default_locale>)\n  reference:<attr>.label                 resolve a reference_entity_record label by code held in attribute_values\n  computed:<name>                        a platform-provided computed value (e.g. completeness)",
+          "type": "string",
+          "pattern": "^(column:[a-z][a-z0-9_]*|attribute:(common|locale)\\.([a-z0-9_]+|\\*)|relation:[a-z][a-z0-9_]*→[a-z][a-z0-9_]*\\.[a-z0-9_]+(\\.[a-z0-9_<>]+)?(\\[\\])?|reference:[a-z][a-z0-9_]*\\.label|computed:[a-z][a-z0-9_]*)$"
+        },
+        "type": {
+          "description": "Postgres type the column is cast to. Inferred when omitted (text for strings/attributes, the source column type for column:, text[] for array relations).",
+          "type": "string",
+          "enum": ["text", "text[]", "int", "bigint", "numeric", "bool", "timestamptz", "date", "uuid", "jsonb"]
+        },
+        "optional": {
+          "description": "Column may be null (no error if the source attribute/relation is absent).",
+          "type": "boolean",
+          "default": true
+        },
+        "pii": {
+          "description": "Personal data (a name, an e-mail address, a phone number, a street). The platform keeps the column out of the default view and exposes it only to callers with the analytics.pii right, never to AI or MCP.",
+          "type": "boolean",
+          "default": false
+        }
+      }
+    },
+    "roles": {
+      "description": "Semantic roles that drive the analytics UIs (Report shell date-range/trend, cohorts, segments). All optional — the studio falls back to column-type heuristics when a role is absent. Names must refer to columns declared above.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "time": {
+          "description": "Primary time column for date-range scoping and time-series trends.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "entity": {
+          "description": "Entity key for cohort analysis (e.g. the customer or product id).",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "measures": {
+          "description": "Numeric columns meaningful to aggregate (sum/avg) as report metrics.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$" },
+          "default": []
+        },
+        "dimensions": {
+          "description": "Columns meaningful to group or segment by.",
+          "type": "array",
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9_]{0,62}$" },
+          "default": []
+        }
+      }
+    },
+    "relation": {
+      "type": "object",
+      "required": ["name", "column", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Name of the relation, unique within the view (e.g. \"product\", \"contact\").",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "column": {
+          "description": "Column of this view that holds the key of the related row. Must be declared in `columns`.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "to": {
+          "description": "The related view as \"<app>.<view>\", e.g. \"products.products\". The join matches `column` against that view's key.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9_]{0,62}$"
+        }
+      }
+    },
+    "dataset": {
+      "description": "One dataset: rows from outside this app's entities, with declared columns. `scope` decides whose rows they are, `mode` decides when they are read, and `source` decides where from.",
+      "type": "object",
+      "required": ["name", "scope", "source", "columns"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Logical dataset name, unique within the file. metrics.json refers to it as `dataset`.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "title": {
+          "description": "Human title for the dataset in analytics UIs. Defaults to a humanised name.",
+          "type": "string"
+        },
+        "description": {
+          "description": "Short description shown for the dataset in the analytics catalog.",
+          "type": "string"
+        },
+        "scope": {
+          "description": "Whose rows these are. 'shared' — the same data for every installation (public holidays, exchange-rate tables, a reference calendar); loaded once and read by every tenant. 'tenant' — separate rows per tenant (the tenant's ad spend, its ERP open items); isolated by Row-Level Security exactly like an app's own entities, and not something a manifest can opt out of.",
+          "type": "string",
+          "enum": ["shared", "tenant"]
+        },
+        "mode": {
+          "description": "When the rows are read. 'sync' — the platform copies them in (on install for a file, on the function's schedule, or periodically for a connection) and queries its own copy; joins with app data work. 'live' — the query runs in the external system at read time and nothing is stored; always current, but a live dataset cannot be joined with app data and only a connection can be read live.",
+          "type": "string",
+          "enum": ["sync", "live"],
+          "default": "sync"
+        },
+        "source": {
+          "description": "Where the rows come from. Exactly one of: a file shipped in the Cube release, a function declared in cube.json, or a connection (a table, a read-only query or a REST endpoint in the external system).",
+          "oneOf": [{ "$ref": "#/$defs/fileSource" }, { "$ref": "#/$defs/functionSource" }, { "$ref": "#/$defs/connectionSource" }]
+        },
+        "roles": { "$ref": "#/$defs/roles" },
+        "columns": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/datasetColumn" }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["mode"], "properties": { "mode": { "const": "live" } } },
+          "then": { "properties": { "source": { "$ref": "#/$defs/connectionSource" } } }
+        }
+      ]
+    },
+    "fileSource": {
+      "description": "A CSV or Parquet file shipped in the Cube release, loaded when the Cube is installed and again on every update.",
+      "type": "object",
+      "required": ["file"],
+      "additionalProperties": false,
+      "properties": {
+        "file": {
+          "description": "Path relative to the Cube root, e.g. \"data/holidays-de.csv\". No leading slash, no \"..\".",
+          "type": "string",
+          "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./-]+\\.(csv|parquet)$"
+        }
+      }
+    },
+    "functionSource": {
+      "description": "Rows produced by one of the Cube's functions (cube.json `functions`), which the platform runs on its schedule and writes into the dataset.",
+      "type": "object",
+      "required": ["function"],
+      "additionalProperties": false,
+      "properties": {
+        "function": {
+          "description": "Key of the function in cube.json.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        }
+      }
+    },
+    "connectionSource": {
+      "description": "Rows read through a connection to an external system — the tenant's database, warehouse or API, authorised by the tenant. Exactly one of `table`, `query` or `endpoint`.",
+      "type": "object",
+      "required": ["connection"],
+      "additionalProperties": false,
+      "properties": {
+        "connection": {
+          "description": "Key of the connection: one declared in cube.json `connections`, or one the tenant set up itself.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "table": {
+          "description": "A table or view in the external database, optionally schema-qualified (\"sales.open_items\").",
+          "type": "string",
+          "pattern": "^[A-Za-z_][A-Za-z0-9_$]*(\\.[A-Za-z_][A-Za-z0-9_$]*){0,2}$"
+        },
+        "query": {
+          "description": "A read-only SELECT in the external system's own SQL dialect. This is the one place SQL is accepted, because it runs in the tenant's own system against data the tenant already owns, never in the platform. The platform runs it with a read-only session and rejects anything that is not a single SELECT.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 20000,
+          "pattern": "^\\s*([Ss][Ee][Ll][Ee][Cc][Tt]|[Ww][Ii][Tt][Hh])\\s"
+        },
+        "endpoint": {
+          "description": "A REST path relative to the connection's base URL, e.g. \"/v1/open-items\". The response is read as JSON.",
+          "type": "string",
+          "pattern": "^/"
+        },
+        "records": {
+          "description": "JSON Pointer to the array of records in the endpoint's response (e.g. \"/data/items\"). Omitted, the response itself must be the array. Only with `endpoint`.",
+          "type": "string",
+          "pattern": "^(/([^/~]|~[01])*)*$"
+        }
+      },
+      "oneOf": [{ "required": ["table"] }, { "required": ["query"] }, { "required": ["endpoint"] }],
+      "dependentRequired": { "records": ["endpoint"] }
+    },
+    "datasetColumn": {
+      "type": "object",
+      "required": ["name", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "name": {
+          "description": "Column name in the dataset.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "type": {
+          "description": "Postgres type the column is cast to. Required, because a dataset has no source entity to infer it from.",
+          "type": "string",
+          "enum": ["text", "text[]", "int", "bigint", "numeric", "bool", "timestamptz", "date", "uuid", "jsonb"]
+        },
+        "format": {
+          "description": "Display hint for analytics UIs. 'money' — an amount in a currency (pair it with a currency column in metrics.json); 'percent' — a ratio shown as a percentage; 'count' — a whole number of things.",
+          "type": "string",
+          "enum": ["money", "percent", "count"]
+        },
+        "pii": {
+          "description": "Personal data. Same rule as on a view column: kept out of the default view, exposed only to callers with the analytics.pii right, never to AI or MCP.",
+          "type": "boolean",
+          "default": false
+        },
+        "optional": {
+          "description": "Column may be null.",
+          "type": "boolean",
+          "default": true
+        },
+        "path": {
+          "description": "JSON Pointer to the value inside one record, for a REST endpoint (e.g. \"/metrics/cost_micros\"). Omitted, the column name is read as a top-level key.",
+          "type": "string",
+          "pattern": "^(/([^/~]|~[01])*)*$"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schemas.revenexx.com/billing.schema.json",
+  "type": "free",
+  "support": { "email": "support@revenexx.com", "url": "https://revenexx.com/support" },
+  "categories": ["analytics"],
+  "available_countries": ["*"],
+  "listing": {
+    "longDescription": {
+      "en": "# Template Cube\n\nDescribe what the Cube adds to the Analytics Studio.",
+      "de": "# Vorlage-Cube\n\nBeschreiben Sie, was der Cube dem Analytics Studio hinzufügt."
+    },
+    "publisher": { "name": "revenexx", "kind": "revenexx", "verified": true, "website": "https://revenexx.com" },
+    "languages": ["de", "en"]
+  }
+}

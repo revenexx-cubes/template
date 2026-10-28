@@ -1,0 +1,21 @@
+{
+  "name": "@revenexx-cubes/template",
+  "version": "0.1.0",
+  "description": "Template for revenexx Cubes: the six contract files, an example file dataset, the validator and CI.",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "validate": "node scripts/cube.mjs validate --catalog test/catalog.json",
+    "validate:online": "node scripts/cube.mjs validate --online --catalog test/catalog.json",
+    "bundle": "node scripts/cube.mjs bundle --catalog test/catalog.json --out dist/release.json",
+    "test": "npm run validate"
+  },
+  "engines": {
+    "node": ">=22"
+  },
+  "devDependencies": {
+    "ajv": "^8.20.0",
+    "ajv-formats": "^3.0.1"
+  },
+  "license": "MIT"
+}

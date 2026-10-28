@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.revenexx.com/metrics.schema.json",
+  "title": "revenexx metrics.json (v1)",
+  "description": "The semantic layer of a revenexx app or Cube: the business numbers it defines and the dimensions they can be cut by. A metric is declared, never written as SQL — an aggregation (sum, count, average, …) over a view or dataset from the analytics.json next to this file, optionally over a restricted column expression and narrowed by structured filters, or a formula over other metrics. The platform compiles every metric into the query itself, so the same definition of \"net revenue\" drives a KPI tile, a chart, a report table, an export and an answer from the AI assistant, and nobody re-derives it in a spreadsheet. Dimensions name the columns worth grouping by and how they join across apps (a shared day, market or campaign), which is what lets a Cube put its ad spend next to an app's revenue. Money is always reported per currency and never converted.",
+  "type": "object",
+  "required": ["version"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON Schema for editor validation and autocompletion."
+    },
+    "version": {
+      "description": "Contract major version.",
+      "type": "string",
+      "enum": ["1"]
+    },
+    "dimensions": {
+      "description": "The columns metrics can be grouped, filtered and joined by. Keys are unique within the file; another app or Cube refers to one as \"<app>.<dimension>\".",
+      "type": "array",
+      "items": { "$ref": "#/$defs/dimension" }
+    },
+    "metrics": {
+      "description": "The numbers this app or Cube defines. Keys are unique within the file; another app, Cube, report or dashboard refers to one as \"<app>.<metric>\".",
+      "type": "array",
+      "items": { "$ref": "#/$defs/metric" }
+    }
+  },
+  "$defs": {
+    "localizableText": {
+      "description": "Operator-facing text. Either a plain string — which the Cockpit shows in every UI language — or a map of BCP-47 language tag to text. 'en' is required and is what the Cockpit falls back to when its UI locale has no entry, so a half-translated file degrades to English rather than to a blank label. Every entry must hold at least one non-blank character.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["en"],
+          "propertyNames": { "pattern": "^[a-z]{2}(-[A-Za-z0-9]{2,8}){0,2}$" },
+          "additionalProperties": { "type": "string", "pattern": "\\S" }
+        }
+      ]
+    },
+    "dimension": {
+      "description": "A column worth grouping by, from exactly one view or dataset.",
+      "type": "object",
+      "required": ["key", "label", "column"],
+      "additionalProperties": false,
+      "oneOf": [{ "required": ["view"] }, { "required": ["dataset"] }],
+      "properties": {
+        "key": {
+          "description": "Dimension key, unique within the file (e.g. \"day\", \"market\", \"status\").",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "label": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Label shown in pickers, axis titles and table headers."
+        },
+        "view": {
+          "description": "Name of a view in this package's analytics.json. Exactly one of `view` or `dataset`.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "dataset": {
+          "description": "Name of a dataset in this package's analytics.json. Exactly one of `view` or `dataset`.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "column": {
+          "description": "The column of that view or dataset.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "vocabulary": {
+          "description": "Labels for coded values, as a map of stored value → label (e.g. \"cancelled\" → \"Cancelled\"). Values without an entry are shown as stored.",
+          "type": "object",
+          "propertyNames": {
+            "description": "stored value"
+          },
+          "additionalProperties": { "$ref": "#/$defs/localizableText" }
+        },
+        "lookup": {
+          "description": "A view whose rows label the values of this column, as \"<app>.<view>\" — e.g. a market id shown by the market's name from \"markets.markets\". The column is matched against that view's key, and the view's first text column is the label.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9_]{0,62}$"
+        },
+        "grain": {
+          "description": "For a time column: the finest grain it is meaningful at. Coarser grains (week, month, quarter, year) are derived by the platform; finer ones are refused. A date column is at most 'day'.",
+          "type": "string",
+          "enum": ["day", "week", "month", "quarter", "year"]
+        },
+        "joins": {
+          "description": "The conformed dimension this one is the same thing as, as \"<app>.<dimension>\" (e.g. \"orders.day\", \"markets.market\", \"campaigns.campaign\"). Declaring it is what lets a report put metrics from two apps or Cubes side by side on one axis: rows meet where both sides hold the same value. Without it, metrics from different packages can still share a report, but not a breakdown.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9_]{0,62}$"
+        }
+      }
+    },
+    "metric": {
+      "description": "One business number. Either a base metric — `agg` over a view or dataset — or a derived metric — a `derived` formula over other metrics. Never both.",
+      "type": "object",
+      "required": ["key", "label", "format"],
+      "additionalProperties": false,
+      "oneOf": [
+        {
+          "title": "A base metric aggregates a view or dataset",
+          "required": ["agg"],
+          "not": { "required": ["derived"] },
+          "oneOf": [{ "required": ["view"] }, { "required": ["dataset"] }]
+        },
+        {
+          "title": "A derived metric is a formula over other metrics",
+          "required": ["derived"],
+          "not": {
+            "anyOf": [
+              { "required": ["agg"] },
+              { "required": ["view"] },
+              { "required": ["dataset"] },
+              { "required": ["expr"] },
+              { "required": ["filters"] },
+              { "required": ["time"] }
+            ]
+          }
+        }
+      ],
+      "properties": {
+        "key": {
+          "description": "Metric key, unique within the file (e.g. \"revenue_net\").",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "label": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Name of the metric on tiles, legends and table headers."
+        },
+        "description": {
+          "$ref": "#/$defs/localizableText",
+          "description": "What the metric means and how it is counted, shown in the metric catalog and as a tooltip. Say what is excluded — \"net of discounts, without cancelled orders\" saves a support ticket."
+        },
+        "hint": {
+          "$ref": "#/$defs/localizableText",
+          "description": "A short caption shown under the KPI value (e.g. \"excl. cancelled\")."
+        },
+        "view": {
+          "description": "Base metric: the view in this package's analytics.json it aggregates. Exactly one of `view` or `dataset`.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "dataset": {
+          "description": "Base metric: the dataset in this package's analytics.json it aggregates. Exactly one of `view` or `dataset`.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "agg": {
+          "description": "Base metric: the aggregation. 'count' without `expr` counts rows; 'count_distinct' counts distinct values of `expr` (e.g. contact_id for buyers).",
+          "type": "string",
+          "enum": ["sum", "count", "count_distinct", "avg", "min", "max"]
+        },
+        "expr": {
+          "description": "Base metric: what is aggregated — a column, or arithmetic over columns and numbers of the same view or dataset (e.g. \"subtotal - discount_total\"). Only column names, numbers, + - * /, parentheses and spaces: no functions, no quotes, no SQL. Omitted with 'count', rows are counted.",
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^[\\s(]*(?:[a-z][a-z0-9_]*|[0-9]+(?:\\.[0-9]+)?)[\\s)]*(?:[-+*/][\\s(]*(?:[a-z][a-z0-9_]*|[0-9]+(?:\\.[0-9]+)?)[\\s)]*)*$"
+        },
+        "filters": {
+          "description": "Base metric: rows that count, as structured conditions that must all hold (e.g. status is not cancelled). Structured rather than a WHERE string, so a filter can be shown to the reader and cannot inject anything.",
+          "type": "array",
+          "items": { "$ref": "#/$defs/filter" }
+        },
+        "time": {
+          "description": "Base metric: the column that places a row in time for period scoping and trends. Defaults to the view's or dataset's `roles.time`.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "derived": {
+          "description": "Derived metric: a formula over metric keys and numbers (e.g. \"revenue_net / orders_count\"). A key may be qualified as \"<app-or-cube>.<metric>\" to use another package's metric (\"orders.revenue_net / ad_cost\"); the other package must be installed for the metric to resolve. Same restricted grammar as `expr`: + - * /, parentheses and spaces, no functions. Write a minus with spaces around it after a qualified key, since a package name may itself contain hyphens. Division by zero yields no value, not an error.",
+          "type": "string",
+          "maxLength": 500,
+          "pattern": "^[\\s(]*(?:(?:[a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]*|[0-9]+(?:\\.[0-9]+)?)[\\s)]*(?:[-+*/][\\s(]*(?:(?:[a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]*|[0-9]+(?:\\.[0-9]+)?)[\\s)]*)*$"
+        },
+        "format": {
+          "description": "How the value is shown. 'money' — an amount, reported per currency (see `currency`); 'count' — a whole number of things; 'number' — any other number; 'percent' — a ratio shown as a percentage (0.25 → 25 %); 'ratio' — a plain ratio (ROAS 3.2); 'duration' — seconds, shown as a duration.",
+          "type": "string",
+          "enum": ["money", "count", "number", "percent", "ratio", "duration"]
+        },
+        "currency": {
+          "description": "For a money metric: the column holding the ISO 4217 currency code. The metric is then computed and reported per currency, never converted — a tenant selling in EUR and CHF sees two numbers, not an invented sum.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "direction": {
+          "description": "Whether a rising value is good news. Colors the change against the comparison period: 'up_is_good' (revenue) shows a rise in green, 'down_is_good' (return rate, cost per order) in red. Omitted, changes are shown neutral.",
+          "type": "string",
+          "enum": ["up_is_good", "down_is_good"]
+        }
+      }
+    },
+    "filter": {
+      "description": "One condition on a column. 'in' and 'not_in' take a list, 'is_null' and 'not_null' take no value, every other operator takes one value.",
+      "type": "object",
+      "required": ["column", "op"],
+      "additionalProperties": false,
+      "properties": {
+        "column": {
+          "description": "The column the condition is on.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "op": {
+          "description": "The comparison.",
+          "type": "string",
+          "enum": ["eq", "neq", "in", "not_in", "gt", "gte", "lt", "lte", "is_null", "not_null"]
+        },
+        "value": {
+          "description": "The value compared against: a string, number or boolean, or a list of them for 'in' and 'not_in'.",
+          "anyOf": [
+            { "type": ["string", "number", "boolean"] },
+            {
+              "type": "array",
+              "minItems": 1,
+              "items": { "type": ["string", "number", "boolean"] }
+            }
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["op"], "properties": { "op": { "enum": ["in", "not_in"] } } },
+          "then": { "required": ["value"], "properties": { "value": { "type": "array" } } }
+        },
+        {
+          "if": { "required": ["op"], "properties": { "op": { "enum": ["is_null", "not_null"] } } },
+          "then": { "not": { "anyOf": [{ "required": ["value"] }] } }
+        },
+        {
+          "if": { "required": ["op"], "properties": { "op": { "enum": ["eq", "neq", "gt", "gte", "lt", "lte"] } } },
+          "then": { "required": ["value"], "properties": { "value": { "type": ["string", "number", "boolean"] } } }
+        }
+      ]
+    }
+  }
+}

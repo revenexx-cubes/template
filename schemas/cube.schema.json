@@ -1,0 +1,242 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.revenexx.com/cube.schema.json",
+  "title": "revenexx Cube Manifest",
+  "description": "The manifest of a Cube: an extension of the Analytics Studio that brings data and numbers rather than screens or tables. A Cube ships data — a file in its release, rows a function fetches on a schedule, or rows read through a connection the tenant authorises (Google, Meta, Microsoft, LinkedIn, or the tenant's own database or API) — and the metrics, reports and dashboards built on it. Like an app, a Cube never ships SQL and never touches tenant isolation: everything is declared and validated, and the platform loads, scopes and secures the data. The files sit next to cube.json in the Cube root: analytics.json declares the datasets, metrics.json the numbers, reports.json and dashboards.json the surfaces, and billing.json (the same billing.schema.json an app uses) the price and marketplace listing.",
+  "type": "object",
+  "required": ["name", "vendor", "version", "title"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON Schema for editor validation and autocompletion."
+    },
+    "name": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 40,
+      "description": "Unique Cube identifier within the vendor (e.g. 'google-ads', 'holidays-de'). Same rules as an app name: lowercase letters, digits and single hyphens, 2–40 characters. Other packages refer to the Cube's metrics as \"<name>.<metric>\"."
+    },
+    "vendor": {
+      "type": "string",
+      "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$",
+      "minLength": 2,
+      "maxLength": 40,
+      "description": "Publisher namespace, shared with apps (e.g. 'revenexx'). A vendor namespace belongs to the first tenant that publishes under it."
+    },
+    "version": {
+      "type": "string",
+      "pattern": "^\\d+\\.\\d+\\.\\d+(?:-[0-9A-Za-z.-]+)?(?:\\+[0-9A-Za-z.-]+)?$",
+      "maxLength": 32,
+      "description": "Semantic version (e.g. '1.0.0'), optionally with a pre-release or build identifier."
+    },
+    "title": {
+      "$ref": "#/$defs/localizableText",
+      "description": "Human-readable name shown in the Analytics Studio and the Marketplace."
+    },
+    "description": {
+      "$ref": "#/$defs/localizableText",
+      "description": "Short description of what the Cube adds. Displayed in the Marketplace."
+    },
+    "icon": {
+      "type": "string",
+      "description": "The Cube icon: a path relative to the Cube root (e.g. \"assets/icon.svg\"), an absolute https:// URL, or a Solar icon name in kebab-case (e.g. \"chart-2\"). Same rules as an app manifest's icon."
+    },
+    "categories": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
+      "description": "Marketplace categories (e.g. \"marketing\", \"calendar\")."
+    },
+    "tags": {
+      "type": "array",
+      "uniqueItems": true,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 40
+      },
+      "description": "Free search keywords for the Marketplace."
+    },
+    "requires": {
+      "description": "Apps or Cubes this Cube builds on, as name → semver range (e.g. {\"orders\": \"^3.0\"}). The Cube cannot be installed without them, because its metrics or reports refer to theirs.",
+      "type": "object",
+      "propertyNames": {
+        "description": "app or Cube name",
+        "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$"
+      },
+      "additionalProperties": {
+        "type": "string",
+        "minLength": 1,
+        "description": "Semver range (e.g. '^1.0')."
+      }
+    },
+    "connections": {
+      "description": "External accounts the tenant connects when installing the Cube. The tenant is asked for consent with `reason` and the listed scopes; credentials and tokens are held by the platform and never reach the Cube's files or a report.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/connection" }
+    },
+    "settings": {
+      "description": "What the tenant fills in when installing the Cube (an account id, a region, a threshold). Read by the Cube's functions. A 'secret' is stored in the platform secret store and never shown again after it is saved.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/setting" }
+    },
+    "data": {
+      "description": "Files in the release that fill a dataset, as dataset → file. Each entry must match a dataset in analytics.json whose source is that file; it is listed here so the release can be checked for it before it is published.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["dataset", "file"],
+        "additionalProperties": false,
+        "properties": {
+          "dataset": {
+            "description": "Dataset name in analytics.json.",
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+          },
+          "file": {
+            "description": "Path relative to the Cube root, CSV or Parquet.",
+            "type": "string",
+            "pattern": "^(?!/)(?!.*\\.\\.)[A-Za-z0-9_./-]+\\.(csv|parquet)$"
+          }
+        }
+      }
+    },
+    "functions": {
+      "description": "Functions that fetch rows into a dataset, typically from a connection's API. The platform runs them in a sandbox on their schedule, per tenant for a tenant dataset, with the connection's token and the tenant's settings, and writes what they return into the dataset. They return rows; they never get a database handle.",
+      "type": "array",
+      "items": { "$ref": "#/$defs/function" }
+    }
+  },
+  "$defs": {
+    "localizableText": {
+      "description": "Operator-facing text. Either a plain string — which the Cockpit shows in every UI language — or a map of BCP-47 language tag to text. 'en' is required and is what the Cockpit falls back to when its UI locale has no entry, so a half-translated file degrades to English rather than to a blank label. Every entry must hold at least one non-blank character.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["en"],
+          "propertyNames": { "pattern": "^[a-z]{2}(-[A-Za-z0-9]{2,8}){0,2}$" },
+          "additionalProperties": { "type": "string", "pattern": "\\S" }
+        }
+      ]
+    },
+    "connection": {
+      "type": "object",
+      "required": ["key", "provider", "reason"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Connection key, unique within the Cube. A dataset's `source.connection` refers to it.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "provider": {
+          "description": "Who the tenant signs in with. 'google', 'meta', 'microsoft' and 'linkedin' run that provider's consent flow; 'custom' asks the tenant for the connection details of its own database or API (see `kind`).",
+          "type": "string",
+          "enum": ["google", "meta", "microsoft", "linkedin", "custom"]
+        },
+        "scopes": {
+          "description": "Provider scopes requested in the consent flow. Ask for read-only scopes; the consent prompt lists every one.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "minLength": 1 }
+        },
+        "reason": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Why the Cube needs this connection, shown in the consent prompt (e.g. \"Reads your ad spend per campaign and day to compute ROAS.\")."
+        },
+        "kind": {
+          "description": "For a custom connection: a 'database' (queried with `table` or `query`) or a 'rest' API (read with `endpoint`). Required when provider is custom.",
+          "type": "string",
+          "enum": ["database", "rest"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["provider"], "properties": { "provider": { "const": "custom" } } },
+          "then": { "required": ["kind"] }
+        }
+      ]
+    },
+    "setting": {
+      "type": "object",
+      "required": ["key", "type", "label"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Setting key, unique within the Cube.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "type": {
+          "description": "What the field holds. string → a text input; secret → a masked input, stored in the secret store; number → a number input; boolean → a switch; select → a dropdown of `options`.",
+          "type": "string",
+          "enum": ["string", "secret", "number", "boolean", "select"]
+        },
+        "label": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Field label in the install form."
+        },
+        "required": {
+          "description": "The Cube cannot be installed without a value.",
+          "type": "boolean",
+          "default": false
+        },
+        "options": {
+          "description": "For a select: the choices.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": ["value", "label"],
+            "additionalProperties": false,
+            "properties": { "value": { "type": "string", "minLength": 1 }, "label": { "$ref": "#/$defs/localizableText" } }
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "select" } } },
+          "then": { "required": ["options"] }
+        }
+      ]
+    },
+    "function": {
+      "type": "object",
+      "required": ["key", "dataset"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Function key, unique within the Cube. A dataset's `source.function` refers to it.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "dataset": {
+          "description": "The dataset in analytics.json the function's rows are written to.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "schedule": {
+          "description": "When the function runs, as a five-field cron expression in UTC (e.g. \"0 3 * * *\" for daily at 03:00). Omitted, it runs once a day.",
+          "type": "string",
+          "pattern": "^\\S+(\\s+\\S+){4}$"
+        },
+        "timeout": {
+          "description": "Seconds one run may take before it is stopped, at most 300.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 300,
+          "default": 60
+        },
+        "max_rows": {
+          "description": "Most rows one run may write, at most 1,000,000. A run that returns more fails rather than writing a truncated dataset.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 1000000
+        }
+      }
+    }
+  }
+}

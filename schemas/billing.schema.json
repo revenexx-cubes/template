@@ -1,0 +1,251 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.revenexx.com/billing.schema.json",
+  "title": "revenexx App Billing",
+  "description": "Marketplace billing declaration for a revenexx App. Defines how the app is priced and distributed. Without billing.json, the app is private to the vendor. Required for App Marketplace distribution. NOTE: Billing model is an open decision — this schema is a first PoC implementation.",
+  "type": "object",
+  "required": ["type"],
+  "oneOf": [
+    {
+      "title": "A paid package names its price",
+      "properties": { "type": { "const": "paid" } },
+      "required": ["type", "price"]
+    },
+    {
+      "title": "A free or included package does not have to",
+      "properties": { "type": { "enum": ["free", "included"] } },
+      "required": ["type"]
+    }
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON Schema for editor validation and autocompletion."
+    },
+    "type": {
+      "type": "string",
+      "enum": ["free", "paid", "included"],
+      "description": "'free' — available at no cost in the Marketplace. 'paid' — requires a subscription plan (processed via Chargebee). 'included' — bundled with the Customer's billing package (no separate charge, activated by Console based on package)."
+    },
+    "support": {
+      "type": "object",
+      "description": "Support contact information displayed in the Marketplace and Cockpit.",
+      "additionalProperties": false,
+      "properties": {
+        "email": {
+          "type": "string",
+          "format": "email",
+          "description": "Support email address."
+        },
+        "url": {
+          "type": "string",
+          "format": "uri",
+          "description": "Support website or documentation URL."
+        }
+      }
+    },
+    "price": {
+      "type": "object",
+      "description": "What this package costs per month, in one currency. Required when type is 'paid'. ONE package, ONE price: there are no tiers to choose between, so there is nothing to name them. The YEARLY price is deliberately not declared here \u2014 it is twelve monthly ones less 20%, derived by the platform, because a discount a vendor can write down is a discount a vendor can undercut. The revenue split is not here either: it is the same for every partner and is not something a package states about itself.",
+      "additionalProperties": false,
+      "required": ["currency", "monthly"],
+      "properties": {
+        "currency": {
+          "type": "string",
+          "pattern": "^[A-Z]{3}$",
+          "description": "ISO 4217 code, uppercase (e.g. 'EUR')."
+        },
+        "monthly": {
+          "type": "number",
+          "minimum": 0,
+          "description": "Price per month, charged to the tenant that installs this package."
+        }
+      }
+    },
+    "trial": {
+      "type": "object",
+      "description": "Optional trial period before billing starts.",
+      "additionalProperties": false,
+      "properties": {
+        "days": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 90,
+          "description": "Number of free trial days."
+        }
+      }
+    },
+    "categories": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "uniqueItems": true,
+      "description": "Marketplace categories for discoverability (e.g. 'commerce', 'marketing', 'integration', 'analytics')."
+    },
+    "legal": {
+      "type": "object",
+      "description": "What a customer has to be able to read BEFORE installing, and what the platform has to be able to check before listing. Every field is a URL a person can open without an account \u2014 a policy behind a login is not a policy the buyer can read. All of them are optional HERE on purpose: a `required` in this schema would act on every package already registered, so none could ship even a hotfix until it had one. Which of these blocks a release is the release gate's decision, and it is applied in stages.",
+      "additionalProperties": false,
+      "properties": {
+        "privacy_policy": {
+          "type": "string",
+          "format": "uri",
+          "description": "What this package collects, what it does with it, how long it keeps it and how it is deleted. Reachable without a login."
+        },
+        "terms": {
+          "type": "string",
+          "format": "uri",
+          "description": "What the customer accepts by installing this package."
+        },
+        "dpa": {
+          "type": "string",
+          "format": "uri",
+          "description": "The data processing agreement \u2014 where, and on whose behalf, personal data is processed."
+        },
+        "subprocessors": {
+          "type": "array",
+          "description": "Who else sees data this package sends out of the platform. The hosts here are the ones the manifest already declares as `permissions.outbound` grants \u2014 that register says WHERE data goes, and default-denies the rest; this says WHY and under which agreement, which a grant cannot express. The two are joined by the host name, so a recipient named here and not granted there is a contradiction worth catching.",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["host", "purpose"],
+            "properties": {
+              "host": {
+                "type": "string",
+                "description": "The hostname data is sent to, as the manifest's outbound grant spells it (e.g. 'api.stripe.com')."
+              },
+              "purpose": {
+                "$ref": "#/$defs/localizableText",
+                "description": "Why this recipient receives it, in words a customer reads on the product page."
+              },
+              "dpa": {
+                "type": "string",
+                "format": "uri",
+                "description": "This recipient's own data processing agreement, where it has one of its own."
+              }
+            }
+          }
+        }
+      }
+    },
+    "available_countries": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "pattern": "^([A-Z]{2}|\\*)$"
+      },
+      "description": "ISO 3166-1 alpha-2 country codes where this app is available. Omit or use ['*'] for all countries.",
+      "default": ["*"]
+    },
+    "listing": {
+      "$ref": "#/$defs/listing"
+    }
+  },
+  "$defs": {
+    "localizableText": {
+      "description": "Marketplace-facing text. Either a plain string — which the Marketplace shows in every UI language — or a map of BCP-47 language tag to text. 'en' is required and is the fallback whenever the reader's locale has no entry, so a half-translated listing degrades to English rather than to a blank. Every entry must hold at least one non-blank character. The plain string stays valid forever; no existing billing.json has to be converted.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["en"],
+          "propertyNames": { "pattern": "^[a-z]{2}(-[A-Za-z0-9]{2,8}){0,2}$" },
+          "additionalProperties": { "type": "string", "pattern": "\\S" }
+        }
+      ]
+    },
+    "listing": {
+      "type": "object",
+      "description": "Optional rich Marketplace listing for the app's product page (VTEX-style). All fields optional → backward-compatible. Pricing (type/plans/trial), support and categories come from the billing root above; this block holds the marketing/discovery content. NOTE: `rating` is author-declared today and platform-aggregated later. Reviews are not declared here at all — they are real customer reviews the platform holds, so a manifest cannot seed them.",
+      "additionalProperties": false,
+      "properties": {
+        "media": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Screenshots, video and gallery imagery for the listing. Every reference here is either an absolute URL \u2014 an asset already hosted somewhere \u2014 or a path relative to the app root (e.g. \"media/screenshot-catalog.png\"), which the build uploads to the platform CDN and rewrites to its URL, exactly as `manifest.json#icon` works. Shipping the file in the repo is the shorter road and the one that keeps working: a URL to a host the app does not own outlives the file behind it.",
+          "properties": {
+            "screenshots": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "Screenshots shown in the gallery. An absolute URL, or a repo-relative path the build hosts for you. PNG, JPEG, WebP, GIF or SVG." },
+            "video": { "type": "string", "minLength": 1, "description": "Optional demo/overview video. An absolute URL, or a repo-relative path the build hosts for you. MP4 or WebM." },
+            "gallery": { "type": "array", "items": { "type": "string", "minLength": 1 }, "description": "Additional gallery imagery beside the screenshots. An absolute URL, or a repo-relative path the build hosts for you. PNG, JPEG, WebP, GIF or SVG." }
+          }
+        },
+        "longDescription": { "$ref": "#/$defs/localizableText", "description": "Full product description (Markdown)." },
+        "highlights": { "type": "array", "items": { "$ref": "#/$defs/localizableText" }, "description": "Short bullet highlights for the listing header." },
+        "features": {
+          "type": "array",
+          "description": "Marketing feature blocks (distinct from per-plan `features`).",
+          "items": {
+            "type": "object",
+            "required": ["title", "description"],
+            "additionalProperties": false,
+            "properties": {
+              "title": { "$ref": "#/$defs/localizableText" },
+              "description": { "$ref": "#/$defs/localizableText" },
+              "icon": { "type": "string", "description": "Optional icon token/name." }
+            }
+          }
+        },
+        "rating": {
+          "type": "object",
+          "additionalProperties": false,
+          "description": "Aggregate rating (author-declared today; platform-aggregated later).",
+          "properties": {
+            "average": { "type": "number", "minimum": 0, "maximum": 5 },
+            "count": { "type": "integer", "minimum": 0 }
+          }
+        },
+        "industries": { "type": "array", "items": { "type": "string" }, "description": "Target industries for discovery facets." },
+        "vendors": { "type": "array", "items": { "type": "string" }, "description": "Associated vendors/brands." },
+        "scopes": {
+          "type": "array",
+          "description": "What the app can access — drives the consent screen.",
+          "items": {
+            "type": "object",
+            "required": ["scope", "reason"],
+            "additionalProperties": false,
+            "properties": {
+              "scope": { "type": "string", "description": "Scope/permission key." },
+              "reason": { "$ref": "#/$defs/localizableText", "description": "Why the app needs it (shown on the consent screen)." }
+            }
+          }
+        },
+        "changelog": {
+          "type": "array",
+          "description": "Release notes per version.",
+          "items": {
+            "type": "object",
+            "required": ["version", "notes"],
+            "additionalProperties": false,
+            "properties": {
+              "version": { "type": "string" },
+              "date": { "type": "string", "format": "date" },
+              "notes": { "$ref": "#/$defs/localizableText" }
+            }
+          }
+        },
+        "publisher": {
+          "type": "object",
+          "required": ["name", "kind"],
+          "additionalProperties": false,
+          "description": "Who publishes the app.",
+          "properties": {
+            "name": { "type": "string" },
+            "kind": { "enum": ["revenexx", "partner", "community"], "description": "Publisher tier." },
+            "verified": { "type": "boolean", "description": "Whether the publisher is verified by revenexx." },
+            "website": { "type": "string", "format": "uri" }
+          }
+        },
+        "languages": { "type": "array", "items": { "type": "string" }, "description": "Supported UI/content languages (e.g. 'de', 'en')." },
+        "compatibility": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "min_platform_version": { "type": "string", "description": "Minimum platform version required." }
+          }
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,399 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.revenexx.com/reports.schema.json",
+  "title": "revenexx reports.json (v1)",
+  "description": "The reports an app or Cube adds to the Analytics Studio, declared as a stack of blocks rather than built as a page. A block names metrics and dimensions from metrics.json — its own, or another package's as \"<app>.<metric>\" — and a visual form: a KPI row, bars over time, a ranked list, a table, a funnel, a cohort grid, a forecast, generated insights, a link into the Commerce Studio, or a paragraph of text. The studio renders every report the same way, with the same period picker, comparison, market filter and export, and the same numbers as every other surface that uses those metrics. A report whose required apps or Cubes are not installed is hidden rather than shown half-empty.",
+  "type": "object",
+  "required": ["version", "reports"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON Schema for editor validation and autocompletion."
+    },
+    "version": {
+      "description": "Contract major version.",
+      "type": "string",
+      "enum": ["1"]
+    },
+    "reports": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/report" }
+    }
+  },
+  "$defs": {
+    "localizableText": {
+      "description": "Operator-facing text. Either a plain string — which the Cockpit shows in every UI language — or a map of BCP-47 language tag to text. 'en' is required and is what the Cockpit falls back to when its UI locale has no entry, so a half-translated file degrades to English rather than to a blank label. Every entry must hold at least one non-blank character.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["en"],
+          "propertyNames": { "pattern": "^[a-z]{2}(-[A-Za-z0-9]{2,8}){0,2}$" },
+          "additionalProperties": { "type": "string", "pattern": "\\S" }
+        }
+      ]
+    },
+    "metricRef": {
+      "description": "A metric key from this package's metrics.json, or another package's as \"<app-or-cube>.<metric>\".",
+      "type": "string",
+      "pattern": "^([a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]{0,62}$"
+    },
+    "dimensionRef": {
+      "description": "A dimension key from this package's metrics.json, or another package's as \"<app-or-cube>.<dimension>\".",
+      "type": "string",
+      "pattern": "^([a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]{0,62}$"
+    },
+    "width": {
+      "description": "How much of the row the block takes. Blocks fill rows left to right; 'half' and 'third' collapse to full width on a narrow screen.",
+      "type": "string",
+      "enum": ["full", "half", "third"],
+      "default": "full"
+    },
+    "report": {
+      "type": "object",
+      "required": ["key", "title", "blocks"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Report key, unique within the file. The report's route and the reference a dashboard uses.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Report title in the navigation and the page header."
+        },
+        "description": {
+          "$ref": "#/$defs/localizableText",
+          "description": "One or two sentences under the title: what the report answers."
+        },
+        "nav": {
+          "description": "Where the report sits in the Analytics Studio navigation. Omitted, it is listed under the package's own name.",
+          "type": "object",
+          "required": ["group"],
+          "additionalProperties": false,
+          "properties": {
+            "group": {
+              "description": "Navigation group key (e.g. \"sales\", \"marketing\", \"customers\"). Reports from different packages with the same group share a heading.",
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]{0,62}$"
+            },
+            "position": {
+              "description": "Order within the group, lowest first.",
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        "requires": {
+          "description": "Apps or Cubes this report needs besides its own package, by name (e.g. [\"orders\", \"google-ads\"]). The report is hidden until all of them are installed.",
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9]*(-[a-z0-9]+)*$" }
+        },
+        "params": {
+          "description": "The controls in the report header and what they start at.",
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "period": {
+              "description": "Initial period: the last 7, 30 or 90 days, the last 12 months, year to date, or a custom range the reader picks.",
+              "type": "string",
+              "enum": ["7d", "30d", "90d", "12m", "ytd", "custom"],
+              "default": "30d"
+            },
+            "compare": {
+              "description": "What every number is compared against: the period before, the same period a year earlier, or nothing.",
+              "type": "string",
+              "enum": ["previous", "year", "none"],
+              "default": "previous"
+            },
+            "market": {
+              "description": "Show the market filter. Off for a report whose data has no market.",
+              "type": "boolean",
+              "default": true
+            },
+            "grain": {
+              "description": "Initial time grain for time series. Omitted, the studio picks one from the period.",
+              "type": "string",
+              "enum": ["day", "week", "month"]
+            }
+          }
+        },
+        "blocks": {
+          "description": "The report body, top to bottom.",
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/block" }
+        }
+      }
+    },
+    "block": {
+      "description": "One block of a report, chosen by `type`.",
+      "oneOf": [
+        { "$ref": "#/$defs/kpis" },
+        { "$ref": "#/$defs/time_bars" },
+        { "$ref": "#/$defs/bar_list" },
+        { "$ref": "#/$defs/table" },
+        { "$ref": "#/$defs/funnel" },
+        { "$ref": "#/$defs/cohort" },
+        { "$ref": "#/$defs/forecast" },
+        { "$ref": "#/$defs/insights" },
+        { "$ref": "#/$defs/drilldown" },
+        { "$ref": "#/$defs/text" }
+      ]
+    },
+    "kpis": {
+      "description": "A row of KPI tiles: value, change against the comparison and a sparkline.",
+      "type": "object",
+      "required": ["type", "metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "kpis" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/metricRef" }
+        },
+        "captions": {
+          "description": "A caption under a tile, as a map of metric → text. Overrides the metric's own `hint`.",
+          "type": "object",
+          "propertyNames": {
+            "description": "metric",
+            "pattern": "^([a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]{0,62}$"
+          },
+          "additionalProperties": { "$ref": "#/$defs/localizableText" }
+        }
+      }
+    },
+    "time_bars": {
+      "description": "Bars over time, one bar per grain step, for one or more metrics.",
+      "type": "object",
+      "required": ["type", "metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "time_bars" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/metricRef" }
+        },
+        "stack_by": {
+          "$ref": "#/$defs/dimensionRef",
+          "description": "Split each bar into stacked segments by this dimension."
+        }
+      }
+    },
+    "bar_list": {
+      "description": "A ranked list of horizontal bars: one metric, broken down by one dimension, largest first.",
+      "type": "object",
+      "required": ["type", "metric", "by"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "bar_list" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "metric": { "$ref": "#/$defs/metricRef" },
+        "by": { "$ref": "#/$defs/dimensionRef" },
+        "limit": {
+          "description": "How many rows to show; the rest are summed as \"Other\".",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 100,
+          "default": 10
+        }
+      }
+    },
+    "table": {
+      "description": "A table: one row per value of the dimension(s), one column per metric.",
+      "type": "object",
+      "required": ["type", "by", "metrics"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "table" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "by": {
+          "description": "The dimension, or dimensions, that make the rows.",
+          "anyOf": [
+            { "$ref": "#/$defs/dimensionRef" },
+            {
+              "type": "array",
+              "minItems": 1,
+              "maxItems": 3,
+              "items": { "$ref": "#/$defs/dimensionRef" }
+            }
+          ]
+        },
+        "metrics": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/metricRef" }
+        }
+      }
+    },
+    "funnel": {
+      "description": "A funnel: each step a metric, with the share that made it from the step before.",
+      "type": "object",
+      "required": ["type", "steps"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "funnel" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "steps": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "type": "object",
+            "required": ["label", "metric"],
+            "additionalProperties": false,
+            "properties": {
+              "label": {
+                "$ref": "#/$defs/localizableText",
+                "description": "Name of the step."
+              },
+              "metric": { "$ref": "#/$defs/metricRef" }
+            }
+          }
+        }
+      }
+    },
+    "cohort": {
+      "description": "A cohort grid: entities grouped by the period of their first appearance, and the metric in each period after.",
+      "type": "object",
+      "required": ["type", "metric"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "cohort" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "metric": { "$ref": "#/$defs/metricRef" },
+        "entity": {
+          "$ref": "#/$defs/dimensionRef",
+          "description": "The dimension that identifies an entity (a customer). Defaults to the metric's view `roles.entity`."
+        },
+        "period": {
+          "description": "Cohort period.",
+          "type": "string",
+          "enum": ["week", "month", "quarter"],
+          "default": "month"
+        }
+      }
+    },
+    "forecast": {
+      "description": "The metric's history continued by a forecast with its confidence band.",
+      "type": "object",
+      "required": ["type", "metric", "horizon"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "forecast" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "metric": { "$ref": "#/$defs/metricRef" },
+        "horizon": {
+          "description": "How far ahead.",
+          "type": "string",
+          "enum": ["7d", "30d", "90d"]
+        }
+      }
+    },
+    "insights": {
+      "description": "Generated observations — notable changes, outliers, drivers — over the metrics in scope.",
+      "type": "object",
+      "required": ["type", "scope"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "insights" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "scope": {
+          "description": "The metrics the insights may talk about, as keys or globs: \"orders.*\", \"revenue_*\", \"google-ads.roas\".",
+          "type": "array",
+          "minItems": 1,
+          "items": { "type": "string", "pattern": "^(([a-z][a-z0-9]*(-[a-z0-9]+)*|\\*)\\.)?([a-z][a-z0-9_]*\\*?|\\*)$" }
+        }
+      }
+    },
+    "drilldown": {
+      "description": "A link into the records behind the numbers, in the Commerce Studio.",
+      "type": "object",
+      "required": ["type", "label", "to"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "drilldown" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "label": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Link text."
+        },
+        "to": {
+          "description": "The Commerce Studio view, as \"commerce:<app>.<view>\" (e.g. \"commerce:orders.orders\").",
+          "type": "string",
+          "pattern": "^commerce:[a-z][a-z0-9]*(-[a-z0-9]+)*\\.[a-z][a-z0-9_-]*$"
+        },
+        "filter": {
+          "description": "Filter applied to the target list, as a map of field → value.",
+          "type": "object",
+          "propertyNames": {
+            "description": "field",
+            "pattern": "^[a-z][a-z0-9_]{0,62}$"
+          },
+          "additionalProperties": { "type": ["string", "number", "boolean"] }
+        }
+      }
+    },
+    "text": {
+      "description": "A paragraph of explanatory text (Markdown).",
+      "type": "object",
+      "required": ["type", "body"],
+      "additionalProperties": false,
+      "properties": {
+        "type": { "const": "text" },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Heading above the block."
+        },
+        "width": { "$ref": "#/$defs/width" },
+        "body": {
+          "$ref": "#/$defs/localizableText",
+          "description": "The text, in Markdown."
+        }
+      }
+    }
+  }
+}

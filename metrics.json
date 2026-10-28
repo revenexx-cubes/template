@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schemas.revenexx.com/metrics.schema.json",
+  "version": "1",
+  "dimensions": [
+    { "key": "day", "label": { "en": "Day", "de": "Tag" }, "dataset": "targets", "column": "day", "grain": "day", "joins": "orders.day" }
+  ],
+  "metrics": [
+    {
+      "key": "target",
+      "label": { "en": "Revenue target", "de": "Umsatzziel" },
+      "description": { "en": "Sum of the daily targets in the period, per currency.", "de": "Summe der Tagesziele im Zeitraum, je Währung." },
+      "dataset": "targets",
+      "agg": "sum",
+      "expr": "target",
+      "format": "money",
+      "currency": "currency"
+    },
+    {
+      "key": "target_attainment",
+      "label": { "en": "Target attainment", "de": "Zielerreichung" },
+      "description": { "en": "Net revenue per unit of target.", "de": "Nettoumsatz je Einheit Umsatzziel." },
+      "derived": "orders.revenue_net / target",
+      "format": "percent",
+      "direction": "up_is_good"
+    }
+  ]
+}

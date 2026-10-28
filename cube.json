@@ -1,0 +1,18 @@
+{
+  "$schema": "https://schemas.revenexx.com/cube.schema.json",
+  "name": "template",
+  "vendor": "revenexx",
+  "version": "0.1.0",
+  "title": { "en": "Template Cube", "de": "Vorlage-Cube" },
+  "description": {
+    "en": "A starting point: one shared dataset from a file, one metric, one report, one dashboard.",
+    "de": "Ein Ausgangspunkt: ein gemeinsamer Datensatz aus einer Datei, eine Kennzahl, ein Bericht, ein Dashboard."
+  },
+  "icon": "chart-2",
+  "categories": ["analytics"],
+  "tags": ["template"],
+  "requires": {
+    "orders": "^3.14"
+  },
+  "data": [{ "dataset": "targets", "file": "data/targets.csv" }]
+}

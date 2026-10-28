@@ -1,0 +1,19 @@
+{
+  "$schema": "https://schemas.revenexx.com/analytics.schema.json",
+  "version": "2",
+  "datasets": [
+    {
+      "name": "targets",
+      "title": "Daily targets",
+      "description": "One row per day: the revenue target for that day. Replace with your Cube's data.",
+      "scope": "shared",
+      "source": { "file": "data/targets.csv" },
+      "roles": { "time": "day", "measures": ["target"] },
+      "columns": [
+        { "name": "day", "type": "date", "optional": false },
+        { "name": "target", "type": "numeric", "format": "money", "optional": false },
+        { "name": "currency", "type": "text", "optional": false }
+      ]
+    }
+  ]
+}

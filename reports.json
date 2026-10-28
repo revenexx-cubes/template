@@ -1,0 +1,17 @@
+{
+  "$schema": "https://schemas.revenexx.com/reports.schema.json",
+  "version": "1",
+  "reports": [
+    {
+      "key": "targets",
+      "title": { "en": "Revenue against target", "de": "Umsatz gegen Ziel" },
+      "nav": { "group": "sales", "position": 90 },
+      "requires": ["orders"],
+      "params": { "period": "30d", "compare": "previous", "market": false, "grain": "day" },
+      "blocks": [
+        { "type": "kpis", "metrics": ["orders.revenue_net", "target", "target_attainment"] },
+        { "type": "time_bars", "title": { "en": "Revenue and target by day", "de": "Umsatz und Ziel pro Tag" }, "metrics": ["orders.revenue_net", "target"] }
+      ]
+    }
+  ]
+}

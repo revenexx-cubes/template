@@ -1,0 +1,8 @@
+site_name: Template Cube
+site_description: Documentation for the revenexx Analytics Studio Cube revenexx/template
+
+nav:
+  - Home: index.md
+
+plugins:
+  - techdocs-core

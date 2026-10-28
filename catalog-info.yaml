@@ -1,0 +1,20 @@
+apiVersion: backstage.io/v1alpha1
+kind: Component
+metadata:
+  name: cube-template
+  title: Template Cube
+  description: >
+    Template for revenexx Analytics Studio Cubes — the six contract files, an
+    example shared file dataset, the validator and the CI workflow. Copy it,
+    run scripts/init.mjs, replace the example.
+  annotations:
+    github.com/project-slug: revenexx-cubes/template
+    backstage.io/techdocs-ref: dir:.
+  tags:
+    - analytics-studio
+    - revenexx-cube
+spec:
+  type: library
+  lifecycle: experimental
+  owner: group:default/analytics-studio
+  system: revenue-cloud

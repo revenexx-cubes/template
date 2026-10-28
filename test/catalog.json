@@ -1,0 +1,41 @@
+{
+  "generated_by": "catalog-snapshot.mjs",
+  "packages": {
+    "orders": {
+      "version": "3.14.0",
+      "source": {
+        "repo": "revenexx-apps/orders",
+        "ref": "origin/feature/pe-1192-analytics-catalog",
+        "commit": "4ddba091a0ee3c1ca1ffa86287ec46da31c602cf"
+      },
+      "metrics": [
+        "aov",
+        "buyers",
+        "cancellation_rate",
+        "cancelled_count",
+        "discount_total",
+        "item_revenue_net",
+        "orders_count",
+        "revenue_net",
+        "units_sold"
+      ],
+      "dimensions": [
+        "day",
+        "fulfillment_status",
+        "payment_status",
+        "sku",
+        "status"
+      ],
+      "reports": [
+        {
+          "key": "revenue",
+          "blocks": 5
+        },
+        {
+          "key": "cancellations",
+          "blocks": 3
+        }
+      ]
+    }
+  }
+}

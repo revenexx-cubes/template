@@ -1,0 +1,15 @@
+{
+  "$schema": "https://schemas.revenexx.com/dashboards.schema.json",
+  "version": "1",
+  "dashboards": [
+    {
+      "key": "targets",
+      "title": { "en": "Targets", "de": "Ziele" },
+      "widgets": [
+        { "x": 0, "y": 0, "w": 6, "h": 2, "type": "kpi", "metric": "target_attainment" },
+        { "x": 6, "y": 0, "w": 6, "h": 2, "type": "kpi", "metric": "target" },
+        { "x": 0, "y": 2, "w": 12, "h": 4, "type": "report_block", "report": "targets", "block": 1 }
+      ]
+    }
+  ]
+}

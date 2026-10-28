@@ -1,0 +1,27 @@
+# Validates the Cube against the vendored schemas and the release rules, then
+# builds the release bundle. Nothing here publishes: a release is a POST to the
+# analytics-api registry by an operator (see the release-cube skill).
+name: validate
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: lts/*
+      - run: npm ci
+      - run: npm test
+      - run: npm run validate:online
+        continue-on-error: true
+      - run: npm run bundle
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-bundle
+          path: dist/release.json

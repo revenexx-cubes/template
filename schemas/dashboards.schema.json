@@ -1,0 +1,152 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://schemas.revenexx.com/dashboards.schema.json",
+  "title": "revenexx dashboards.json (v1)",
+  "description": "Ready-made dashboards an app or Cube offers for the Cockpit home and the Analytics Studio: a grid of widgets, each a KPI tile, a chart or one block lifted from a report. A tenant adds an offered dashboard and can then rearrange it; the file is the starting layout, not a lock. Every widget reads metrics from metrics.json, so a dashboard tile and the report behind it always show the same number.",
+  "type": "object",
+  "required": ["version", "dashboards"],
+  "additionalProperties": false,
+  "properties": {
+    "$schema": {
+      "type": "string",
+      "description": "Reference to this JSON Schema for editor validation and autocompletion."
+    },
+    "version": {
+      "description": "Contract major version.",
+      "type": "string",
+      "enum": ["1"]
+    },
+    "dashboards": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/dashboard" }
+    }
+  },
+  "$defs": {
+    "localizableText": {
+      "description": "Operator-facing text. Either a plain string — which the Cockpit shows in every UI language — or a map of BCP-47 language tag to text. 'en' is required and is what the Cockpit falls back to when its UI locale has no entry, so a half-translated file degrades to English rather than to a blank label. Every entry must hold at least one non-blank character.",
+      "oneOf": [
+        { "type": "string" },
+        {
+          "type": "object",
+          "required": ["en"],
+          "propertyNames": { "pattern": "^[a-z]{2}(-[A-Za-z0-9]{2,8}){0,2}$" },
+          "additionalProperties": { "type": "string", "pattern": "\\S" }
+        }
+      ]
+    },
+    "dashboard": {
+      "type": "object",
+      "required": ["key", "title", "widgets"],
+      "additionalProperties": false,
+      "properties": {
+        "key": {
+          "description": "Dashboard key, unique within the file.",
+          "type": "string",
+          "pattern": "^[a-z][a-z0-9_]{0,62}$"
+        },
+        "title": {
+          "$ref": "#/$defs/localizableText",
+          "description": "Dashboard title."
+        },
+        "description": {
+          "$ref": "#/$defs/localizableText",
+          "description": "What the dashboard is for, shown where a tenant picks it."
+        },
+        "widgets": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/widget" }
+        }
+      }
+    },
+    "widget": {
+      "description": "One tile on a 12-column grid. x + w must not exceed 12; overlapping widgets are pushed down.",
+      "type": "object",
+      "required": ["x", "y", "w", "h", "type"],
+      "additionalProperties": false,
+      "properties": {
+        "x": {
+          "description": "Column the widget starts in, 0–11.",
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 11
+        },
+        "y": {
+          "description": "Row the widget starts in, from 0.",
+          "type": "integer",
+          "minimum": 0
+        },
+        "w": {
+          "description": "Width in columns, 1–12.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 12
+        },
+        "h": {
+          "description": "Height in rows.",
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 24
+        },
+        "type": {
+          "description": "'kpi' — one metric as a tile (needs `metric`); 'chart' — a metric over time or by a dimension (needs `chart`); 'report_block' — one block of a report (needs `report` and `block`).",
+          "type": "string",
+          "enum": ["kpi", "chart", "report_block"]
+        },
+        "metric": {
+          "description": "For a kpi: the metric, from this package's metrics.json or another's as \"<app-or-cube>.<metric>\".",
+          "type": "string",
+          "pattern": "^([a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]{0,62}$"
+        },
+        "chart": {
+          "description": "For a chart: what it plots.",
+          "type": "object",
+          "required": ["metric", "kind"],
+          "additionalProperties": false,
+          "properties": {
+            "metric": {
+              "description": "The metric, local or \"<app-or-cube>.<metric>\".",
+              "type": "string",
+              "pattern": "^([a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]{0,62}$"
+            },
+            "by": {
+              "description": "Break down by this dimension instead of over time. Local or \"<app-or-cube>.<dimension>\".",
+              "type": "string",
+              "pattern": "^([a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]{0,62}$"
+            },
+            "kind": {
+              "description": "Chart form.",
+              "type": "string",
+              "enum": ["line", "bar", "area"]
+            }
+          }
+        },
+        "report": {
+          "description": "For a report_block: the report key, local or \"<app-or-cube>.<report>\".",
+          "type": "string",
+          "pattern": "^([a-z][a-z0-9]*(-[a-z0-9]+)*\\.)?[a-z][a-z0-9_]{0,62}$"
+        },
+        "block": {
+          "description": "For a report_block: the position of the block in the report's `blocks`, from 0.",
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "kpi" } } },
+          "then": { "required": ["metric"] }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "chart" } } },
+          "then": { "required": ["chart"] }
+        },
+        {
+          "if": { "required": ["type"], "properties": { "type": { "const": "report_block" } } },
+          "then": { "required": ["report", "block"] }
+        }
+      ]
+    }
+  }
+}

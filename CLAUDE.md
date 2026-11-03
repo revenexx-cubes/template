@@ -16,4 +16,4 @@ with several rows per day, shipping SQL).
 
 ## State
 
-Local only until the GitHub org `revenexx-cubes` exists.
+Public template repo at `revenexx-cubes/template`. A new Cube starts from it with "Use this template".

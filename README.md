@@ -8,9 +8,8 @@ built on them. It never ships SQL.
 ## Start a Cube from it
 
 ```bash
-cp -R ~/srv/http/playground/revenexx-cubes/template ~/srv/http/playground/revenexx-cubes/<name>
-cd ~/srv/http/playground/revenexx-cubes/<name>
-rm -rf .git node_modules dist && git init -b main
+gh repo create <owner>/<name> --template revenexx-cubes/template --private --clone
+cd <name>
 node scripts/init.mjs <name> --title-en "<English title>" --title-de "<deutscher Titel>"
 npm install
 npm run validate
